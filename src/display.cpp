@@ -15,7 +15,11 @@ const DISPLAY_PROFILE dpList[4] = { // 1-bit and 2-bit display types for each pr
     {EP75_800x480_GEN2, EP75_800x480_4GRAY_GEN2}, // a = uses built-in fast + 4-gray 
     {EP75_800x480, EP75_800x480_4GRAY_V2}, // b = darker grays
 };
+#ifdef BOARD_SEEED_RETERMINAL_E1002
+BBEPAPER bbep(EP73_SPECTRA_800x480);
+#else
 BBEPAPER bbep(EP75_800x480);
+#endif
 // Counts the number of partial updates to know when to do a full update
 #else
 #include "FastEPD.h"
@@ -72,7 +76,11 @@ void display_init(void)
     Log_info("Saved temperature profile: %d", iTempProfile);
 #ifdef BB_EPAPER
     bbep.initIO(EPD_DC_PIN, EPD_RST_PIN, EPD_BUSY_PIN, EPD_CS_PIN, EPD_MOSI_PIN, EPD_SCK_PIN, 8000000);
+#ifdef BOARD_SEEED_RETERMINAL_E1002
+    bbep.allocBuffer(); // we need to always draw pixels into the bb_epaper framebuffer
+#else
     bbep.setPanelType(dpList[iTempProfile].OneBit);
+#endif // only for 1-bit displays
 #else
     bbep.initPanel(BB_PANEL_EPDIY_V7_16); //, 26000000);
     bbep.setPanelSize(1872, 1404, BB_PANEL_FLAG_MIRROR_X);
@@ -435,6 +443,19 @@ int png_draw(PNGDRAW *pDraw)
         ucInvert = 0xff; // 2-bit non-palette images need to be inverted colors for 4-gray mode
     }
     s = (ucBppChanged) ? pTemp : (uint8_t *)pDraw->pPixels;
+#ifdef BOARD_SEEED_RETERMINAL_E1002
+// We currently only support 1-bit and we'll use the drawPixel function to properly set
+// the framebuffer contents (colors get translated from the bb_epaper defines)
+    for (x=0; x<pDraw->iWidth; x+=8) {
+        uc = s[0] ^ ucInvert;
+        for (int xx=0; xx<8; xx++) { // test each bit
+            bbep.drawPixel(x+xx, pDraw->y, (uc & 0x80) ? BBEP_WHITE : BBEP_BLACK);
+            uc <<= 1;
+        }
+        s++;
+    }
+    return 1;
+#endif // E1002
     d = pTemp;
     if (iPlane == PNG_1_BIT || iPlane == PNG_1_BIT_INVERTED) {
         // 1-bit output, decode the single plane and write it
@@ -837,11 +858,15 @@ PNG *png = new PNG();
             Log_info("%s [%d]: Decoding %d-bpp png (current)\r\n", __FILE__, __LINE__, png->getBpp());
             // Prepare target memory window (entire display)
 #ifdef BB_EPAPER
+#ifdef BOARD_SEEED_RETERMINAL_E1002
+            if (1) { // only 1-bit output for now
+#else
             bbep.setAddrWindow(0, 0, bbep.width(), bbep.height());
             if (png->getBpp() == 1 || (png->getBpp() == 2 && png_count_colors(png, pPNG, iDataSize) == 2)) { // 1-bit image (single plane)
                 bbep.setPanelType(dpList[iTempProfile].OneBit);
                 rc = REFRESH_PARTIAL; // the new image is 1bpp - try a partial update
                 bbep.startWrite(PLANE_0); // start writing image data to plane 0
+#endif // E1002
                 png->openRAM((uint8_t *)pPNG, iDataSize, png_draw);
                 if (png->getBpp() == 1 || png->getBpp() > 2) {
                     iPlane = PNG_1_BIT;
@@ -989,6 +1014,12 @@ void display_show_image(uint8_t *image_buffer, int data_size, bool bWait)
     }
     if (!bWait) iRefreshMode = REFRESH_PARTIAL; // fast update when showing loading screen
     Log_info("%s [%d]: EPD refresh mode: %d\r\n", __FILE__, __LINE__, iRefreshMode);
+#ifdef BOARD_SEEED_RETERMINAL_E1002
+    iRefreshMode = REFRESH_FULL;
+    bWait = true;
+    bAlloc = true;
+    bbep.writePlane(); // write the 6-color data to the EPD
+#endif
     bbep.refresh(iRefreshMode, bWait);
     if (bAlloc) {
         bbep.freeBuffer();

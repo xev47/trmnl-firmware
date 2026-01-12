@@ -105,8 +105,8 @@
 #elif defined(BOARD_TRMNL_X)
    #define FAKE_BATTERY_VOLTAGE
 
-#elif defined(BOARD_SEEED_RETERMINAL_E1001)
-   // Pin definition for reTerminal E1001
+#elif defined(BOARD_SEEED_RETERMINAL_E1001) || defined(BOARD_SEEED_RETERMINAL_E1002)
+   // Pin definition for reTerminal E1001 & E1002
    #define EPD_SCK_PIN  7
    #define EPD_MOSI_PIN 9
    #define EPD_CS_PIN   10
