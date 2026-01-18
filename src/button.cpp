@@ -4,10 +4,24 @@
 #include "button.h"
 
 static unsigned long wait_for_button_release(unsigned long start_time) {
+  Log_info("wait_for_button_release: start=%lu", start_time);
+  bool seenLow = false;
+  unsigned long last_log = millis();
   while (digitalRead(PIN_INTERRUPT) == LOW && millis() - start_time < BUTTON_SOFT_RESET_TIME) {
+    if (!seenLow) {
+      Log_info("wait_for_button_release: button LOW detected");
+      seenLow = true;
+    }
+    // occasional heartbeat log to know we're still waiting (every 1s)
+    if (millis() - last_log > 1000) {
+      Log_info("wait_for_button_release: still LOW at %lu ms", millis() - start_time);
+      last_log = millis();
+    }
     delay(10);
   }
-  return millis() - start_time;
+  unsigned long duration = millis() - start_time;
+  Log_info("wait_for_button_release: duration=%lu", duration);
+  return duration;
 }
 
 static ButtonPressResult classify_press_duration(unsigned long duration) {
@@ -49,7 +63,7 @@ static ButtonPressResult wait_for_second_press(unsigned long start_time) {
 ButtonPressResult read_button_presses()
 {
   auto time_start = millis();
-  Log_info("Button time=%lu: start", time_start);
+  Log_info("Button time=%lu: start (raw gpio=%d)", time_start, digitalRead(PIN_INTERRUPT));
 
   if (digitalRead(PIN_INTERRUPT) == HIGH) {
     if (time_start < 2000) {

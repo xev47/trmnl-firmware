@@ -131,6 +131,8 @@ void bl_init(void)
 
   wakeup_reason = esp_sleep_get_wakeup_cause();
 
+  Log_info("wakeup_reason=%d, PIN_INTERRUPT=%d, raw_gpio=%d", wakeup_reason, PIN_INTERRUPT, digitalRead(PIN_INTERRUPT));
+
   if (wakeup_reason == ESP_SLEEP_WAKEUP_GPIO || wakeup_reason == ESP_SLEEP_WAKEUP_EXT0 || wakeup_reason == ESP_SLEEP_WAKEUP_EXT1)
   {
     Log_info("GPIO wakeup detected (%d)", wakeup_reason);
@@ -1869,12 +1871,16 @@ static void goToSleep(void)
   preferences.end();
   esp_sleep_enable_timer_wakeup((uint64_t)time_to_sleep * SLEEP_uS_TO_S_FACTOR);
   // Configure GPIO pin for wakeup
+  Log_info("Configuring deep sleep wakeup for PIN_INTERRUPT=%d", PIN_INTERRUPT);
 #if CONFIG_IDF_TARGET_ESP32
   #define BUTTON_PIN_BITMASK(GPIO) (1ULL << GPIO)  // 2 ^ GPIO_NUMBER in hex
+  Log_info("Enabling ESP32 ext1 wakeup for pin %d (bitmask=0x%llx)", PIN_INTERRUPT, BUTTON_PIN_BITMASK(PIN_INTERRUPT));
   esp_sleep_enable_ext1_wakeup(BUTTON_PIN_BITMASK(PIN_INTERRUPT), ESP_EXT1_WAKEUP_ALL_LOW);
 #elif CONFIG_IDF_TARGET_ESP32C3
+  Log_info("Enabling C3 GPIO wakeup for pin %d", PIN_INTERRUPT);
   esp_deep_sleep_enable_gpio_wakeup(1 << PIN_INTERRUPT, ESP_GPIO_WAKEUP_GPIO_LOW);
 #elif CONFIG_IDF_TARGET_ESP32S3
+  Log_info("Enabling S3 ext0 wakeup for pin %d", PIN_INTERRUPT);
   esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_INTERRUPT, 0);
 #else
 #error "Unsupported ESP32 target for GPIO wakeup configuration"
